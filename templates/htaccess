@@ -1,0 +1,6 @@
+DirectoryIndex disabled
+RewriteEngine On
+RewriteBase /
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-l
+RewriteRule ^(.*) ajp://127.0.0.1:{{ConnectorPort}}/$1 [proxy,last]

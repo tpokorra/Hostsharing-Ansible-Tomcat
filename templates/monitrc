@@ -1,0 +1,10 @@
+set daemon 60 with start delay 120
+set logfile /home/pacs/{{pac}}/users/{{user}}/monit/var/monit.log
+set idfile /home/pacs/{{pac}}/users/{{user}}/monit/var/monit.id
+set statefile /home/pacs/{{pac}}/users/{{user}}/monit/var/monit.state
+set mailserver localhost
+set mail-format { from: monit@{{pac}}.hostsharing.net }
+set alert webmaster@{{domain}}
+check process tomcat with pidfile /home/pacs/{{pac}}/users/{{user}}/tomcat/work/catalina.pid
+    start program "/home/pacs/{{pac}}/users/{{user}}/tomcat/bin/startup.sh"
+    stop program "/home/pacs/{{pac}}/users/{{user}}/tomcat/bin/shutdown.sh"

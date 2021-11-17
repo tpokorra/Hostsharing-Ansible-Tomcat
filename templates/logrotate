@@ -1,0 +1,14 @@
+/home/pacs/{{pac}}/users/{{user}}/tomcat/logs/catalina.out {
+   copytruncate
+   compress
+   rotate 5
+   daily
+   missingok
+}
+/home/pacs/{{pac}}/users/{{user}}/monit/var/monit.log {
+   copytruncate
+   compress
+   rotate 2
+   weekly
+   missingok
+}

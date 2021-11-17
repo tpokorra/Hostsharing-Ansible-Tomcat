@@ -1,0 +1,138 @@
+---
+- hosts: tomcat
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+  tasks:
+
+  #################################
+  ## setup the user and the domain
+  #################################
+  - name: ensure user exists
+    hsuser.js: name="{{pac}}-{{user}}" password="{{password}}" exists="true"
+  - name: setup domain
+    hsdomain.js: name="{{domain}}" owner="{{pac}}-{{user}}" exists="true"
+
+  #################################
+  ## setup tomcat
+  #################################
+  - name: install tomcat
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    shell: |
+      tomcat9-instance-create tomcat
+    args:
+      executable: /bin/bash
+      chdir: "/home/pacs/{{pac}}/users/{{user}}"
+      creates: "/home/pacs/{{pac}}/users/{{user}}/tomcat/conf/catalina.properties"
+
+  - name: copy catalina script
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    copy:
+      src: "/usr/share/tomcat9/bin/catalina.sh"
+      remote_src: yes
+      dest: "/home/pacs/{{pac}}/users/{{user}}/tomcat/bin/catalina.sh"
+
+  - name: replace server.xml
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    template:
+      src: "templates/server.xml"
+      dest: "/home/pacs/{{pac}}/users/{{user}}/tomcat/conf/server.xml"
+      mode: 0644
+
+  - name: replace setenv.sh
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    template:
+      src: "templates/setenv.sh"
+      dest: "/home/pacs/{{pac}}/users/{{user}}/tomcat/bin/setenv.sh"
+      mode: 0755
+
+  #################################
+  ## setup the hello world app
+  #################################
+  - name: create directory for app
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    file:
+      path: "/home/pacs/{{pac}}/users/{{user}}/webapps/hello/WEB-INF"
+      state: directory
+
+  - name: upload web.xml
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    template:
+      src: "templates/web.xml"
+      dest: "/home/pacs/{{pac}}/users/{{user}}/webapps/hello/WEB-INF/web.xml"
+      mode: 0644
+
+  - name: upload index.jsp
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    template:
+      src: "templates/index.jsp"
+      dest: "/home/pacs/{{pac}}/users/{{user}}/webapps/hello/index.jsp"
+      mode: 0644
+
+  #################################
+  ## apache configuration
+  #################################
+  - name: upload .htaccess
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    template: dest="/home/pacs/{{pac}}/users/{{user}}/doms/{{domain}}/htdocs-ssl/.htaccess" src="templates/htaccess" mode=0644
+
+  ##################################
+  ## monit & logrotate configuration
+  ##################################
+  - name: create directory for monit
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    file:
+      path: "/home/pacs/{{pac}}/users/{{user}}/monit/var"
+      state: directory
+  - name: upload monit configuration
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    template: dest="/home/pacs/{{pac}}/users/{{user}}/.monitrc" src="templates/monitrc" mode=0600
+  - name: upload logrotate configuration
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    template: dest="/home/pacs/{{pac}}/users/{{user}}/.logrotate" src="templates/logrotate" mode=0600
+  - name: start monit as cronjob
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    cron:
+      name: "start monit at reboot"
+      special_time: reboot
+      job: rm -f $HOME/tomcat/work/catalina.pid && /usr/bin/monit -c "$HOME/.monitrc"
+  - name: run logrotate once a day
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    cron:
+      name: "logrotate"
+      minute: "22"
+      hour: "1"
+      job: "/usr/sbin/logrotate -s $HOME/.logrotate.state $HOME/.logrotate"
+  - name: delete old tomcat logs
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    cron:
+      name: "delete tomcat logs"
+      minute: "14"
+      hour: "3"
+      job: "/usr/bin/find $HOME/tomcat/logs -type f -mmin +10080 -delete"
+
+  ##################################################
+  ## start tomcat service via monit
+  ##################################################
+  - name: start monit
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    shell: |
+      /usr/bin/monit -c ".monitrc"
+    args:
+      executable: /bin/bash
+      chdir: "/home/pacs/{{pac}}/users/{{user}}/"
+      creates: "/home/pacs/{{pac}}/users/{{user}}/var/run/monit.id"
